@@ -101,39 +101,89 @@ def create_solutions(size):
 
     return possibles
 
-def get_state(board, size):
+def get_state(board, size, possibles):
 
-    possibles = create_solutions(size)
     count = 0
     subsquare = int(math.sqrt(size))
-        for row in range(0,size):
-            for column in range(0,size):
-                curVal = board[row][column]
+    for row in range(0,size):
+        for column in range(0,size):
+            curVal = board[row][column]
+            row_key = "r" + str(row)
+            col_key = "c" + str(column)
+            if row<subsquare & column<subsquare:
+                sq_key = "sq0"
+            elif row<subsquare:
+                sq_key = "sq1"
+            elif column<subsquare:
+                sq_key = "sq2"
+            else:
+                sq_key = "sq3"
+            if curVal != 0:
+                print curVal
+                col_possibles = possibles[col_key]
+                row_possibles = possibles[row_key]
+                sq_possibles = possibles[sq_key]
+                print "old possibles"
+                # print  col_key, col_possibles
+                # print row_key, row_possibles
+                print sq_key, sq_possibles
+                col_possibles.remove(curVal)
+                row_possibles.remove(curVal)
+                sq_possibles.remove(curVal)
+
+                possibles[col_key] = col_possibles
+                possibles[row_key] = row_possibles
+                possibles[sq_key] = sq_possibles
+                print "new possibles"
+                # print col_key, possibles[col_key]
+                # print row_key, possibles[row_key]
+                print sq_key, possibles[sq_key]
+                # print
+
+            # for subi in range(0,subsquare):
+            #     for subj in range(0,subsquare):
+            #         print "subsquare"
+            #         print row, column
+            #         row_index = row+(row-row%subsquare)
+            #         col_index = column+(column-column%subsquare)
+            #         print row_index, col_index
+            #         print board[row_index][col_index]
+
+
+
+    print possibles
+
+def back_tracking(board, size, possibles):
+
+    for row in range(0,size):
+        for col in range(0,size):
+            curVal = board[row][col]
+            if curVal == 0:
                 row_key = "r" + str(row)
                 col_key = "c" + str(column)
-                if curVal != 0:
-                    # print curVal
-                    col_possibles = possibles[col_key]
-                    row_possibles = possibles[row_key]
-                    # print "old possibles"
-                    # print  col_key, col_possibles
-                    # print row_key, row_possibles
-                    col_possibles.remove(curVal)
-                    row_possibles.remove(curVal)
+                if row<subsquare & column<subsquare:
+                    sq_key = "sq0"
+                elif row<subsquare:
+                    sq_key = "sq1"
+                elif column<subsquare:
+                    sq_key = "sq2"
+                else:
+                    sq_key = "sq3"
 
-                    possibles[col_key] = col_possibles
-                    possibles[row_key] = row_possibles
-                    # print "new possibles"
-                    # print col_key, possibles[col_key]
-                    # print row_key, possibles[row_key]
-                    # print
-    print possibles
+                rowp = possibles[row_key]
+                colp = possibles[col_key]
+                sqp = possibles[sq_key]
+
+                for i in range(0,len(rowp))
+                    val = possibles[row_key].pop(i)
+                    if colp.index(val) & sqp.index(val):
+                        
 
 
 board = init_board('4x4.sudoku.txt')
 print_board(board.CurrentGameboard)
 sol = create_solutions(board.BoardSize)
-get_state(board.CurrentGameboard, board.BoardSize)
+get_state(board.CurrentGameboard, board.BoardSize, sol)
 
 # def check_possible_solutions(board):
 #     for row in range(0,4):
