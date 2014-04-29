@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import struct, string, math, copy
+import struct, string, math, copy, time, timeit
 
 #this will be the game object your player will manipulate
 class SudokuBoard:
@@ -82,116 +82,367 @@ def print_board(board):
     for row in board:
         print row
 
-def create_solutions(size):
-    possibleVals = []
-    possibles = {}
+def solve_backtrack(board):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    blanks = find_blanks(board)
+    if(not blanks):
+        return True
 
-    # possible number values
+    row, col = blanks
     for i in range(1,size+1):
-        possibleVals.append(i)
+        if check_assignment(board, row, col, i):
+            gameBoard[row][col] = i
+            
+            if (solve_backtrack(board)):
+                return True
 
-    # dictionary of all rows, columns, and squares
-    for i in range(0,size):
-        row = "r" + str(i)
-        col = "c" + str(i)
-        sq = "sq" + str(i)
-        possibles[row] = copy.deepcopy(possibleVals)
-        possibles[col] = copy.deepcopy(possibleVals)
-        possibles[sq] = copy.deepcopy(possibleVals)
+            gameBoard[row][col] = 0
 
-    return possibles
+    return False
 
-def get_state(board, size, possibles):
+def solve_forwardcheck(board):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    blanks = find_blanks(board)
+    
+    # if assignment returns no blanks, puzzle solved
+    if(not blanks):
+        return True
 
-    count = 0
-    subsquare = int(math.sqrt(size))
-    for row in range(0,size):
-        for column in range(0,size):
-            curVal = board[row][column]
-            row_key = "r" + str(row)
-            col_key = "c" + str(column)
-            if row<subsquare & column<subsquare:
-                sq_key = "sq0"
-            elif row<subsquare:
-                sq_key = "sq1"
-            elif column<subsquare:
-                sq_key = "sq2"
-            else:
-                sq_key = "sq3"
-            if curVal != 0:
-                print curVal
-                col_possibles = possibles[col_key]
-                row_possibles = possibles[row_key]
-                sq_possibles = possibles[sq_key]
-                print "old possibles"
-                # print  col_key, col_possibles
-                # print row_key, row_possibles
-                print sq_key, sq_possibles
-                col_possibles.remove(curVal)
-                row_possibles.remove(curVal)
-                sq_possibles.remove(curVal)
+    # assign first blank
+    row, col = blanks
 
-                possibles[col_key] = col_possibles
-                possibles[row_key] = row_possibles
-                possibles[sq_key] = sq_possibles
-                print "new possibles"
-                # print col_key, possibles[col_key]
-                # print row_key, possibles[row_key]
-                print sq_key, possibles[sq_key]
-                # print
+    # find domain
+    d = find_single_solution(board, row, col)
+    dOld = copy.deepcopy(d)
+    for value in dOld:
+        # check assignment 
+        if check_assignment(board, row, col, value):
+            gameBoard[row][col] = value
 
-            # for subi in range(0,subsquare):
-            #     for subj in range(0,subsquare):
-            #         print "subsquare"
-            #         print row, column
-            #         row_index = row+(row-row%subsquare)
-            #         col_index = column+(column-column%subsquare)
-            #         print row_index, col_index
-            #         print board[row_index][col_index]
+            if(solve_forwardcheck(board)):
+                return True
+
+            gameBoard[row][col] = 0
+            d = dOld
+        else:
+            d = dOld
+
+    return False
+
+def find_single_solution(board, row, col):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    sol = []
+
+    for i in range(1,size+1):
+        if(check_assignment(board, row, col, i)):
+            sol.append(i)
+
+    return sol
 
 
+def solve_backtrackMRV(board):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    blanks = find_blanks(board)
+    if(not blanks):
+        return True
 
-    print possibles
+    mrv = find_MRV(board)
 
-def back_tracking(board, size, possibles):
+    if (not mrv):
+        return True
+
+    row, col = mrv
+    d = [1,2,3,4]
+    dOld = copy.deepcopy(d)
+    for value in dOld:
+        if check_assignment(board, row, col, value):
+            gameBoard[row][col] = value
+            
+            if (solve_backtrack(board)):
+                return True
+
+            gameBoard[row][col] = 0
+            d = dOld
+
+    print "did we get here?"
+    return False
+
+def solve_backtrackLCV(board):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    blanks = find_blanks(board)
+    if(not blanks):
+        return True
+
+    mrv = find_MRV(board)
+
+    if (not mrv):
+        return True
+
+    row, col = mrv
+    value = find_LCV(board, row, col)
+
+    if (value == 0):
+        print "error: could not find a LCV"
+
+    if check_assignment(board, row, col, value):
+        gameBoard[row][col] = value
+        
+        if (solve_backtrack(board)):
+            return True
+
+        gameBoard[row][col] = 0
+
+    return False
+
+def find_LCV(board, row, col):
+    size = board.BoardSize
+    boardClone = copy.deepcopy(board)
+    gameBoardClone = boardClone.CurrentGameboard
+    maxVal = 0
+
+    domain = find_single_solution(board, row, col)
+
+    for value in domain:
+        # add value to board
+        gameBoardClone[row][col] = value
+        solutions = find_all_solutions(boardClone)
+        solBoard = solutions.CurrentGameboard
+
+        solCount = 0
+        maxSolCount = 0
+
+        # count number of constraints
+        for i in range(0,size):
+            for j in range(0, size):
+                solCount = solCount + len(solBoard[i][j])
+
+        # find max solCount
+        if (solCount > maxSolCount):
+            maxSolCount = solCount
+            maxVal = value
+
+    return maxVal
+
+def find_MRV(board):
+    size = board.BoardSize
+    
+    solutions = find_all_solutions(board)
+
+    solBoard = solutions.CurrentGameboard
+    mrv = [0,0,size]
 
     for row in range(0,size):
         for col in range(0,size):
-            curVal = board[row][col]
-            if curVal == 0:
-                row_key = "r" + str(row)
-                col_key = "c" + str(column)
-                if row<subsquare & column<subsquare:
-                    sq_key = "sq0"
-                elif row<subsquare:
-                    sq_key = "sq1"
-                elif column<subsquare:
-                    sq_key = "sq2"
-                else:
-                    sq_key = "sq3"
+            curLen = len(solBoard[row][col])
 
-                rowp = possibles[row_key]
-                colp = possibles[col_key]
-                sqp = possibles[sq_key]
+            if (curLen < mrv[2]) and (curLen != 0) :
+                mrv[0] = row
+                mrv[1] = col
+                mrv[2] = curLen
 
-                for i in range(0,len(rowp))
-                    val = possibles[row_key].pop(i)
-                    if colp.index(val) & sqp.index(val):
-                        
+    if (mrv[2] == size):
+        return False
+
+    return mrv[0], mrv[1]
+
+def find_all_solutions(board):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+
+    # initialize solutions grid
+    solutions = copy.deepcopy(board)
+    solBoard = solutions.CurrentGameboard
+    for row in range(0,size):
+        for col in range(0,size):
+            solBoard[row][col] = []
+
+    for row in range(0,size):
+        for col in range(0,size):
+            if (gameBoard[row][col] == 0):
+                for i in range(1,size+1):
+                    if (check_assignment(board, row, col, i)):
+                        solBoard[row][col].append(i)
+
+    return solutions
+
+def find_empty(board):
+    size = board.BoardSize
+    solBoard = board.CurrentGameboard
+    for row in range(0,size):
+        for col in range(0,size):
+            if solBoard[row][col] != []:
+                return False
+    return True
 
 
-board = init_board('4x4.sudoku.txt')
-print_board(board.CurrentGameboard)
-sol = create_solutions(board.BoardSize)
-get_state(board.CurrentGameboard, board.BoardSize, sol)
+def find_blanks(board):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    for row in range(0,size):
+        for col in range(0,size):
+            if gameBoard[row][col] == 0:
+                return row, col
+    return False
 
-# def check_possible_solutions(board):
-#     for row in range(0,4):
-#         for column in range(0,4):
-#             if board[row][column] == 0:
-#                 print row
-#                 print column
-#                 print "possible solutio"
+def check_row(board, row, num):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    for col in range(0,size):
+        if gameBoard[row][col] == num:
+            return True
+    return False
 
-        
+def check_col(board, col, num):
+    size = board.BoardSize
+    gameBoard = board.CurrentGameboard
+    for row in range(0,size):
+        if gameBoard[row][col] == num:
+            return True
+    return False
+
+def check_box(board, startRow, startCol, num):
+    subsize = int(math.sqrt(board.BoardSize))
+    gameBoard = board.CurrentGameboard
+    for subrow in range(0,subsize):
+        for subcol in range(0,subsize):
+            if gameBoard[subrow+startRow][subcol+startCol] == num:
+                return True
+    return False
+
+def check_assignment(board, row, col, num):
+    subsize = int(math.sqrt(board.BoardSize))
+    rowCheck = check_row(board, row, num)
+    colCheck = check_col(board, col, num)
+    boxCheck = check_box(board, row-row%subsize, col-col%subsize, num)
+
+    return (not rowCheck) and (not colCheck) and (not boxCheck)
+    # return (not rowCheck) and (not boxCheck)
+
+# Simple Backtracking
+board4 = init_board('4x4.sudoku.txt')
+sol = solve_backtrack(board4)
+timer = timeit.Timer(lambda: solve_backtrack(board4))
+checkSol = iscomplete(board4.CurrentGameboard)
+print "4x4 Board Solve Simple Backtrack: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+# MRV Backtracking
+board4 = init_board('4x4.sudoku.txt')
+sol = solve_backtrackMRV(board4)
+timer = timeit.Timer(lambda: solve_backtrackMRV(board4))
+checkSol = iscomplete(board4.CurrentGameboard)
+print "4x4 Board Solve MRV Backtrack: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+# MRV+LCV Backtracking
+board4 = init_board('4x4.sudoku.txt')
+sol = solve_backtrackLCV(board4)
+timer = timeit.Timer(lambda: solve_backtrackLCV(board4))
+checkSol = iscomplete(board4.CurrentGameboard)
+print "4x4 Board Solve MRV+LCV Backtrack: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+# Forward Checking
+board4 = init_board('4x4.sudoku.txt')
+sol = solve_forwardcheck(board4)
+timer = timeit.Timer(lambda: solve_forwardcheck(board4))
+checkSol = iscomplete(board4.CurrentGameboard)
+print "4x4 Board Solve Forward Checking: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+print
+
+# Simple Backtracking
+board9 = init_board('9x9.sudoku.txt')
+sol = solve_backtrack(board9)
+timer = timeit.Timer(lambda: solve_backtrack(board9))
+checkSol = iscomplete(board9.CurrentGameboard)
+print "9x9 Board Solve Simple Backtrack: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+# MRV Backtracking
+board9 = init_board('9x9.sudoku.txt')
+size = board9.BoardSize
+sol = solve_backtrackMRV(board9)
+timer = timeit.Timer(lambda: solve_backtrackMRV(board9))
+checkSol = iscomplete(board9.CurrentGameboard)
+print "9x9 Board Solve MRV Backtrack: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+# MRV+LCV Backtracking
+board9 = init_board('9x9.sudoku.txt')
+sol = solve_backtrackLCV(board9)
+timer = timeit.Timer(lambda: solve_backtrackLCV(board9))
+checkSol = iscomplete(board9.CurrentGameboard)
+print "9x9 Board Solve MRV+LCV Backtrack: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+# Forward Checking
+board9 = init_board('9x9.sudoku.txt')
+sol = solve_forwardcheck(board9)
+timer = timeit.Timer(lambda: solve_forwardcheck(board9))
+checkSol = iscomplete(board9.CurrentGameboard)
+print "9x9 Board Solve Forward Checking: " + str(checkSol)
+print "Time: " + str(timer.timeit(number=1))
+
+print
+
+# # Simple Backtracking
+# board16 = init_board('16x16.sudoku.txt')
+# sol = solve_backtrack(board16)
+# checkSol = iscomplete(board16.CurrentGameboard)
+# print "16x16 Board Solve Simple Backtrack: " + str(checkSol)
+
+# MRV Backtracking
+board16 = init_board('16x16.sudoku.txt')
+size = board16.BoardSize
+sol = solve_backtrackMRV(board16)
+checkSol = iscomplete(board16.CurrentGameboard)
+print "16x16 Board Solve MRV Backtrack: " + str(checkSol)
+
+# # MRV+LCV Backtracking
+# board16 = init_board('16x16.sudoku.txt')
+# sol = solve_backtrackLCV(board16)
+# checkSol = iscomplete(board16.CurrentGameboard)
+# print "16x16 Board Solve MRV+LCV Backtrack: " + str(checkSol)
+
+# # Forward Checking
+# board16 = init_board('16x16.sudoku.txt')
+# sol = solve_forwardcheck(board16)
+# checkSol = iscomplete(board16.CurrentGameboard)
+# print "16x16 Board Solve Forward Checking: " + str(checkSol)
+
+print
+
+# # Simple Backtracking
+# board25 = init_board('25x25.sudoku.txt')
+# sol = solve_backtrack(board25)
+# checkSol = iscomplete(board25.CurrentGameboard)
+# print "25x25 Board Solve Simple Backtrack: " + str(checkSol)
+
+# # MRV Backtracking
+# board25 = init_board('25x25.sudoku.txt')
+# size = board25.BoardSize
+# sol = solve_backtrackMRV(board25)
+# checkSol = iscomplete(board25.CurrentGameboard)
+# print "25x25 Board Solve MRV Backtrack: " + str(checkSol)
+
+# # MRV+LCV Backtracking
+# board25 = init_board('25x25.sudoku.txt')
+# sol = solve_backtrackLCV(board25)
+# checkSol = iscomplete(board25.CurrentGameboard)
+# print "25x25 Board Solve MRV+LCV Backtrack: " + str(checkSol)
+
+# # Forward Checking
+# board25 = init_board('25x25.sudoku.txt')
+# sol = solve_forwardcheck(board25)
+# checkSol = iscomplete(board25.CurrentGameboard)
+# print "25x25 Board Solve Forward Checking: " + str(checkSol)
+
+
 
