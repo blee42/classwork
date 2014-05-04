@@ -1,6 +1,10 @@
-## Classwork
+## Sudoku Solver
 
-Programming assignments from classes at Northwestern University.
+Sudoku solver for Introduction to AI (EECS 348)
 
-### Classes:
-* EECS 348: Introduction to AI - Spring 2014
+# Technologies
+* Python
+
+# Usage
+
+Run from terminal `python -i sudoku.py`
